@@ -1,0 +1,15 @@
+{
+    "name": "@chapito/react",
+    "version": "1.0.0",
+    "description": "React components for Chapito",
+    "main": "index.js",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "keywords": [],
+    "author": "Marek Brenčič <marek@brencic.sk>",
+    "license": "ISC",
+    "peerDependencies": {
+        "react": "^19.1.1"
+    }
+}

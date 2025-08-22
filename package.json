@@ -1,0 +1,19 @@
+{
+    "name": "chapito",
+    "version": "1.0.0",
+    "description": "",
+    "main": "index.js",
+    "workspaces": [
+        "packages/*",
+        "apps/*"
+    ],
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "keywords": [],
+    "author": "Marek Brenčič <marek@brencic.sk>",
+    "license": "ISC",
+    "devDependencies": {
+        "@biomejs/biome": "2.2.0"
+    }
+}

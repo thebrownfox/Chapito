@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chapito Core - Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+
+        #carousel-container {
+            display: flex;
+            width: 100%;
+            overflow: hidden;
+            border: 2px solid #ccc;
+            border-radius: 8px;
+        }
+
+        .carousel-item {
+            flex: 0 0 200px;
+            height: 150px;
+            background: linear-gradient(45deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 4px;
+        }
+
+        .carousel-item:nth-child(even) {
+            background: linear-gradient(45deg, #f093fb 0%, #f5576c 100%);
+        }
+
+        .controls {
+            margin-top: 20px;
+        }
+
+        button {
+            margin-right: 10px;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            background: #667eea;
+            color: white;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #5a6fd8;
+        }
+    </style>
+    <link rel="stylesheet" href="./dist/chapito.css">
+</head>
+
+<body>
+    <h1>Chapito Core Demo</h1>
+
+    <div id="carousel-container">
+        <div class="carousel-item">Item 1</div>
+        <div class="carousel-item">Item 2</div>
+        <div class="carousel-item">Item 3</div>
+        <div class="carousel-item">Item 4</div>
+        <div class="carousel-item">Item 5</div>
+        <div class="carousel-item">Item 6</div>
+        <div class="carousel-item">Item 1</div>
+        <div class="carousel-item">Item 2</div>
+        <div class="carousel-item">Item 3</div>
+        <div class="carousel-item">Item 4</div>
+        <div class="carousel-item">Item 5</div>
+        <div class="carousel-item">Item 6</div>
+    </div>
+
+    <div class="controls">
+        <button onclick="carousel.play()">Play</button>
+        <button onclick="carousel.pause()">Pause</button>
+        <button onclick="carousel.previous()">Previous</button>
+        <button onclick="carousel.next()">Next</button>
+        <button onclick="carousel.goTo(0)">Go to First</button>
+        <button onclick="console.log('Current index:', carousel.getCurrentIndex())">Get Index</button>
+    </div>
+
+    <!-- Import GSAP from CDN for this demo -->
+    <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/Draggable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/InertiaPlugin.min.js"></script> -->
+    <script type="module" src="./dist/chapito.es.js"></script>
+    <!-- Load the compiled Chapito library -->
+    <script type="module">
+        // In a real application, you would import from the npm package
+        // import { createChapito } from '@chapito/core';
+
+        import { createChapito } from './dist/chapito.es.js';
+
+        const carousel = createChapito(document.getElementById('carousel-container'), {draggable: true, gap:15});
+
+        // Optionally, expose it to window for button onclick handlers
+        window.carousel = carousel;
+
+        // For this demo, we'll create a simple version
+        window.carousel = {
+            play: () => carousel.play(),
+            pause: () => carousel.pause(),
+            next: () => carousel.next(),
+            previous: () => carousel.previous(),
+            goTo: (index) => carousel.goTo(index),
+            getCurrentIndex: () => carousel.getCurrentIndex()
+        };
+
+        console.log('Chapito Core demo loaded. The compiled library is in the dist folder.');
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,33 @@
+{
+    "name": "@chapito/core",
+    "version": "1.0.0",
+    "description": "Core functionality for Chapito - A framework-agnostic horizontal carousel library",
+    "main": "dist/index.js",
+    "module": "dist/index.esm.js",
+    "types": "dist/index.d.ts",
+    "scripts": {
+        "build": "vite build",
+        "dev": "tsc --watch",
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "keywords": [
+        "carousel",
+        "slider",
+        "gsap",
+        "animation",
+        "horizontal-scroll"
+    ],
+    "author": "Marek Brenčič <marek@brencic.sk>",
+    "license": "ISC",
+    "dependencies": {
+        "gsap": "^3.13.0",
+        "vite": "^7.1.2"
+    },
+    "devDependencies": {
+        "@types/node": "^24.3.0",
+        "typescript": "^5.9.2"
+    },
+    "files": [
+        "dist"
+    ]
+}

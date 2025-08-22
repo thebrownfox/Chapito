@@ -1,0 +1,72 @@
+/* NOTE: This is css for dynamic and draggable version of Chapito */
+.chapitoContainer {
+    display: flex;
+    overflow: hidden;
+    white-space: nowrap;
+    height: auto;
+    width: 100%;
+}
+
+.chapitoItem {
+    flex-shrink: 0;
+    white-space: nowrap;
+    will-change: transform;
+    backface-visibility: hidden;
+}
+
+.chapitoMarquee {
+    display: flex;
+    white-space: nowrap;
+    width: 100%;
+    overflow: hidden;
+    position: relative;
+}
+
+.chapitoMarqueeContentStatic {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+}
+
+.chapitoMarqueeContent {
+    display: flex;
+    will-change: transform;
+}
+
+.chapitoMarqueeContentAnimationLeft {
+    animation: chapitoMarquee-left var(--animation-duration, 15s) linear infinite;
+}
+
+.chapitoMarqueeContentAnimationRight {
+    animation: chapitoMarquee-right var(--animation-duration, 15s) linear infinite;
+}
+
+.chapitoMarqueeContent:hover {
+    animation-play-state: paused;
+}
+
+.chapitoMarqueeGroup {
+    display: flex;
+    flex-shrink: 0;
+}
+
+@keyframes chapitoMarquee-left {
+    0% {
+        transform: translate3d(0%, 0, 0);
+    }
+
+    100% {
+        transform: translate3d(calc(-100% / var(--duplicate-count, 1)), 0, 0);
+    }
+}
+
+@keyframes chapitoMarquee-right {
+    0% {
+        transform: translate3d(calc(-100% / var(--duplicate-count, 1)), 0, 0);
+    }
+
+    100% {
+        transform: translate3d(0%, 0, 0);
+    }
+}

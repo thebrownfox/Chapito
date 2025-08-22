@@ -1,0 +1,418 @@
+import gsap from "gsap";
+import { Draggable } from "gsap/Draggable";
+import InertiaPlugin from "gsap/InertiaPlugin";
+
+gsap.registerPlugin(Draggable, InertiaPlugin);
+
+export interface ChapitoOptions {
+	speed?: number;
+	gap?: number;
+	direction?: "left" | "right";
+	draggable?: boolean;
+	pauseOnHover?: boolean;
+}
+
+interface HorizontalLoopConfig extends GSAPTimelineVars {
+	speed?: number;
+	paddingRight?: string | number;
+	draggable?: boolean;
+	snap?: boolean | number;
+}
+
+function horizontalLoop(
+	_items: HTMLElement[],
+	config: HorizontalLoopConfig = {},
+) {
+	const items = gsap.utils.toArray(_items) as HTMLElement[];
+
+	const animationTimeline = gsap.timeline({
+		repeat: config.repeat || -1,
+		reversed: config.reversed,
+		paused: config.paused,
+		defaults: { ease: "none" },
+		onReverseComplete: () => {
+			animationTimeline.totalTime(
+				animationTimeline.rawTime() + animationTimeline.duration() * 100,
+			);
+		},
+	});
+
+	const length = items.length;
+	const startX = items[0].offsetLeft;
+
+	const times: number[] = [];
+	const widths: number[] = [];
+	const xPercents: number[] = [];
+	let curIndex = 0;
+
+	// NOTE: Not really pixels per second, but a multiplier for speed
+	const pixelsPerSecond = (config.speed || 50) * 10;
+	const snap =
+		config.snap === false
+			? (v: number) => v
+			: gsap.utils.snap((config.snap as number) || 1);
+	let curX: number;
+	let distanceToStart: number;
+	let distanceToLoop: number;
+	let i: number;
+
+	const populateWidths = () =>
+		items.forEach((el, i) => {
+			widths[i] = parseFloat(gsap.getProperty(el, "width", "px") as string);
+			xPercents[i] = snap(
+				(parseFloat(gsap.getProperty(el, "x", "px") as string) / widths[i]) *
+					100 +
+					(gsap.getProperty(el, "xPercent") as number),
+			);
+		});
+
+	const getTotalWidth = () =>
+		items[length - 1].offsetLeft +
+		(xPercents[length - 1] / 100) * widths[length - 1] -
+		startX +
+		items[length - 1].offsetWidth *
+			(gsap.getProperty(items[length - 1], "scaleX") as number) +
+		(parseFloat(config.paddingRight as string) || 0);
+
+	populateWidths();
+
+	let totalWidth: number = getTotalWidth();
+
+	gsap.set(items, {
+		x: 0,
+		xPercent: (i: number) => xPercents[i],
+	});
+
+	for (i = 0; i < length; i++) {
+		const item = items[i];
+		curX = (xPercents[i] / 100) * widths[i];
+		distanceToStart = item.offsetLeft + curX - startX;
+		distanceToLoop =
+			distanceToStart +
+			widths[i] * (gsap.getProperty(item, "scaleX") as number);
+
+		animationTimeline
+			.to(
+				item,
+				{
+					xPercent: snap(((curX - distanceToLoop) / widths[i]) * 100),
+					duration: distanceToLoop / pixelsPerSecond,
+				},
+				0,
+			)
+			.fromTo(
+				item,
+				{
+					xPercent: snap(
+						((curX - distanceToLoop + totalWidth) / widths[i]) * 100,
+					),
+				},
+				{
+					xPercent: xPercents[i],
+					duration:
+						(curX - distanceToLoop + totalWidth - curX) / pixelsPerSecond,
+					immediateRender: false,
+				},
+				distanceToLoop / pixelsPerSecond,
+			)
+			.add(`label${i}`, distanceToStart / pixelsPerSecond);
+
+		times[i] = distanceToStart / pixelsPerSecond;
+	}
+
+	function toIndex(index: number, vars: gsap.TweenVars | undefined) {
+		vars = vars || {};
+		if (Math.abs(index - curIndex) > length / 2) {
+			index += index > curIndex ? -length : length;
+		}
+		let newIndex = gsap.utils.wrap(0, length, index),
+			time = times[newIndex];
+		if (time > animationTimeline.time() !== index > curIndex) {
+			vars.modifiers = {
+				time: gsap.utils.wrap(0, animationTimeline.duration()),
+			};
+			time += animationTimeline.duration() * (index > curIndex ? 1 : -1);
+		}
+		curIndex = newIndex;
+		vars.overwrite = true;
+		return animationTimeline.tweenTo(time, vars);
+	}
+
+	animationTimeline.next = (vars: gsap.TweenVars) =>
+		toIndex(curIndex + 1, vars);
+
+	animationTimeline.previous = (vars: gsap.TweenVars) =>
+		toIndex(curIndex - 1, vars);
+
+	animationTimeline.current = () => curIndex;
+
+	animationTimeline.toIndex = (index: number, vars: gsap.TweenVars) =>
+		toIndex(index, vars);
+
+	animationTimeline.updateIndex = () => {
+		curIndex = Math.round(animationTimeline.progress() * (items.length - 1));
+	};
+
+	animationTimeline.times = times;
+
+	animationTimeline.progress(1, true).progress(0, true);
+
+	if (config.reversed) {
+		animationTimeline.vars.onReverseComplete?.();
+		animationTimeline.reverse();
+	}
+
+	if (config.draggable && typeof Draggable === "function") {
+		const proxy = document.createElement("div");
+		const wrap = gsap.utils.wrap(0, 1);
+
+		let ratio: number;
+		let startProgress: number;
+		let draggable: globalThis.Draggable;
+		let dragSnap: number;
+		let roundFactor: number;
+		let isDragging = false;
+		let resumeTween: gsap.core.Tween | null = null;
+		let isHovered = false;
+
+		const align = () => {
+			animationTimeline.progress(
+				wrap(startProgress + (draggable.startX - draggable.x) * ratio),
+			);
+		};
+		const syncIndex = () => {
+			animationTimeline.updateIndex();
+		};
+
+		// Find the container element (parent of items)
+		const container = items[0]?.parentElement;
+		if (!container) {
+			console.warn(
+				"Chapito: Could not find container element for draggable functionality",
+			);
+			return animationTimeline;
+		}
+
+		draggable = Draggable.create(proxy, {
+			trigger: container,
+			type: "x",
+			onPress() {
+				isDragging = true;
+				// NOTE: We have to kill any existing resume animation to avoid flickering
+				if (resumeTween) {
+					resumeTween.kill();
+					resumeTween = null;
+				}
+
+				startProgress = animationTimeline.progress();
+				animationTimeline.progress(0);
+				populateWidths();
+				totalWidth = getTotalWidth();
+				ratio = 1 / totalWidth;
+				dragSnap = totalWidth / items.length;
+				roundFactor = 10 ** (dragSnap.toString().split(".")[1] || "").length;
+				animationTimeline.progress(startProgress);
+
+				// NOTE: Immediately pause the timeline
+				animationTimeline.timeScale(0);
+			},
+			onDrag: align,
+			onThrowUpdate: align,
+			inertia: true,
+			onRelease: () => {
+				if (!isDragging) return;
+				syncIndex();
+				// NOTE: Only resume if we're not in the middle of momentum
+				if (!draggable.isThrowing) {
+					resumeTween = gsap.to(animationTimeline, {
+						timeScale: config.reversed ? -1 : 1,
+						duration: 0.6,
+						ease: "power2.out",
+					});
+				}
+			},
+			onThrowComplete: () => {
+				isDragging = false;
+				syncIndex();
+				// NOTE: Only resume if not hovering - this prevents unwanted resume after momentum
+				if (!isHovered) {
+					resumeTween = gsap.to(animationTimeline, {
+						timeScale: config.reversed ? -1 : 1,
+						duration: 0.6,
+						ease: "power2.out",
+					});
+				}
+			},
+		})[0];
+
+		// Store the hover state and draggable instance on the timeline for external access
+		(animationTimeline as GSAPTimeline).setHoverState = (hovered: boolean) => {
+			isHovered = hovered;
+		};
+		(animationTimeline as GSAPTimeline).draggable = draggable;
+	}
+
+	return animationTimeline;
+}
+
+export class Chapito {
+	#timeline: gsap.core.Timeline | null = null;
+	#items: HTMLElement[] = [];
+	#isHovered = false;
+	#options: Required<ChapitoOptions>;
+	#container: HTMLElement | string;
+
+	constructor(container: HTMLElement | string, options: ChapitoOptions = {}) {
+		this.#container = container;
+		this.#options = {
+			speed: 50,
+			gap: 0,
+			direction: "left",
+			draggable: false,
+			pauseOnHover: true,
+			...options,
+		};
+
+		this.#init();
+	}
+
+	#init() {
+		const containerElement =
+			typeof this.#container === "string"
+				? (document.querySelector(this.#container) as HTMLElement)
+				: this.#container;
+
+		if (!containerElement) {
+			throw new Error("Chapito: Container element not found");
+		}
+
+		// Get all direct children as carousel items
+		const children = containerElement.children;
+		this.#items = [];
+		for (let i = 0; i < children.length; i++) {
+			this.#items.push(children[i] as HTMLElement);
+		}
+
+		if (this.#items.length === 0) {
+			console.warn("Chapito: No items found in container");
+			return;
+		}
+
+		this.#timeline = horizontalLoop(this.#items, {
+			repeat: -1,
+			speed: this.#options.speed,
+			paddingRight: this.#options.gap,
+			reversed: this.#options.direction === "right",
+			draggable: this.#options.draggable,
+		});
+
+		if (this.#options.pauseOnHover) {
+			this.#setupHoverEvents();
+		}
+	}
+
+	#setupHoverEvents() {
+		if (!this.#timeline) return;
+
+		for (const item of this.#items) {
+			item.addEventListener("mouseenter", () => {
+				this.#isHovered = true;
+				if (this.#timeline) {
+					gsap.to(this.#timeline, { timeScale: 0, overwrite: true });
+				}
+				// Update draggable hover state if available
+				if ((this.#timeline as any).setHoverState) {
+					(this.#timeline as any).setHoverState(true);
+				}
+			});
+
+			item.addEventListener("mouseleave", () => {
+				this.#isHovered = false;
+				if (this.#timeline) {
+					const timeScale = this.#options.direction === "right" ? -1 : 1;
+					gsap.to(this.#timeline, { timeScale, overwrite: true });
+				}
+				// Update draggable hover state if available
+				if ((this.#timeline as any).setHoverState) {
+					(this.#timeline as any).setHoverState(false);
+				}
+			});
+		}
+	}
+
+	// Public API methods
+	public play() {
+		if (this.#timeline) {
+			this.#timeline.play();
+		}
+	}
+
+	public pause() {
+		if (this.#timeline) {
+			this.#timeline.pause();
+		}
+	}
+
+	public reverse() {
+		if (this.#timeline) {
+			this.#timeline.reverse();
+		}
+	}
+
+	public next() {
+		if (this.#timeline && (this.#timeline as any).next) {
+			(this.#timeline as any).next();
+		}
+	}
+
+	public previous() {
+		if (this.#timeline && (this.#timeline as any).previous) {
+			(this.#timeline as any).previous();
+		}
+	}
+
+	public goTo(index: number) {
+		if (this.#timeline && (this.#timeline as any).toIndex) {
+			(this.#timeline as any).toIndex(index);
+		}
+	}
+
+	public getCurrentIndex(): number {
+		if (this.#timeline && (this.#timeline as any).current) {
+			return (this.#timeline as any).current();
+		}
+		return 0;
+	}
+
+	public destroy() {
+		if (this.#timeline) {
+			this.#timeline.kill();
+			this.#timeline = null;
+		}
+
+		// Remove event listeners
+		if (this.#options.pauseOnHover) {
+			for (const item of this.#items) {
+				item.removeEventListener("mouseenter", () => {});
+				item.removeEventListener("mouseleave", () => {});
+			}
+		}
+
+		// Destroy draggable if it exists
+		if (this.#timeline && (this.#timeline as any).draggable) {
+			(this.#timeline as any).draggable.kill();
+		}
+	}
+
+	public updateOptions(newOptions: Partial<ChapitoOptions>) {
+		this.#options = { ...this.#options, ...newOptions };
+		this.destroy();
+		this.#init();
+	}
+}
+
+// Export a factory function for simpler usage
+export const createChapito = (
+	container: HTMLElement | string,
+	options?: ChapitoOptions,
+) => new Chapito(container, options);

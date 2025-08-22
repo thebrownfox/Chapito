@@ -1,0 +1,12 @@
+{
+    "name": "@chapito/vue",
+    "version": "1.0.0",
+    "description": "Vue components for Chapito",
+    "main": "index.js",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "keywords": [],
+    "author": "Marek Brenčič <marek@brencic.sk>",
+    "license": "ISC"
+}
