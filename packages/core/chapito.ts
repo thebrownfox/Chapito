@@ -12,6 +12,7 @@ export interface ChapitoOptions {
 	pauseOnHover?: boolean;
 }
 
+// TODO: Add option for vertical scrolling
 interface HorizontalLoopConfig extends GSAPTimelineVars {
 	speed?: number;
 	paddingRight?: string | number;
@@ -19,10 +20,21 @@ interface HorizontalLoopConfig extends GSAPTimelineVars {
 	snap?: boolean | number;
 }
 
-function horizontalLoop(
+interface ChapitoTimeline extends gsap.core.Timeline {
+	draggable?: globalThis.Draggable;
+	setHoverState?: (hovered: boolean) => void;
+	next?: (vars?: gsap.TweenVars) => gsap.core.Tween;
+	previous?: (vars?: gsap.TweenVars) => gsap.core.Tween;
+	current?: () => number;
+	toIndex?: (index: number, vars?: gsap.TweenVars) => gsap.core.Tween;
+	updateIndex?: () => void;
+	times?: number[];
+}
+
+const horizontalLoop = (
 	_items: HTMLElement[],
 	config: HorizontalLoopConfig = {},
-) {
+) => {
 	const items = gsap.utils.toArray(_items) as HTMLElement[];
 
 	const animationTimeline = gsap.timeline({
@@ -50,7 +62,9 @@ function horizontalLoop(
 	const snap =
 		config.snap === false
 			? (v: number) => v
-			: gsap.utils.snap((config.snap as number) || 1);
+			: typeof config.snap === "number"
+				? gsap.utils.snap(config.snap)
+				: gsap.utils.snap(1);
 	let curX: number;
 	let distanceToStart: number;
 	let distanceToLoop: number;
@@ -120,14 +134,22 @@ function horizontalLoop(
 		times[i] = distanceToStart / pixelsPerSecond;
 	}
 
-	function toIndex(index: number, vars: gsap.TweenVars | undefined) {
-		vars = vars || {};
+	const setIndex = (newIndex: number) => {
+		curIndex = newIndex;
+	};
+
+	const toIndex = (index: number, _vars: gsap.TweenVars | undefined) => {
+		const vars = _vars || {};
 		if (Math.abs(index - curIndex) > length / 2) {
 			index += index > curIndex ? -length : length;
 		}
 		let newIndex = gsap.utils.wrap(0, length, index),
 			time = times[newIndex];
-		if (time > animationTimeline.time() !== index > curIndex) {
+
+		const goingForward = index > curIndex;
+		const timeIsAhead = time > animationTimeline.time();
+
+		if (timeIsAhead !== goingForward) {
 			vars.modifiers = {
 				time: gsap.utils.wrap(0, animationTimeline.duration()),
 			};
@@ -135,8 +157,14 @@ function horizontalLoop(
 		}
 		curIndex = newIndex;
 		vars.overwrite = true;
-		return animationTimeline.tweenTo(time, vars);
-	}
+		return animationTimeline.tweenTo(time, {
+			...vars,
+			onComplete: () => {
+				setIndex(newIndex);
+				if (typeof vars.onComplete === "function") vars.onComplete();
+			},
+		});
+	};
 
 	animationTimeline.next = (vars: gsap.TweenVars) =>
 		toIndex(curIndex + 1, vars);
@@ -150,7 +178,7 @@ function horizontalLoop(
 		toIndex(index, vars);
 
 	animationTimeline.updateIndex = () => {
-		curIndex = Math.round(animationTimeline.progress() * (items.length - 1));
+		setIndex(Math.round(animationTimeline.progress() * (items.length - 1)));
 	};
 
 	animationTimeline.times = times;
@@ -184,7 +212,7 @@ function horizontalLoop(
 			animationTimeline.updateIndex();
 		};
 
-		// Find the container element (parent of items)
+		// NOTE: Find the container element (parent of items)
 		const container = items[0]?.parentElement;
 		if (!container) {
 			console.warn(
@@ -245,18 +273,18 @@ function horizontalLoop(
 			},
 		})[0];
 
-		// Store the hover state and draggable instance on the timeline for external access
-		(animationTimeline as GSAPTimeline).setHoverState = (hovered: boolean) => {
+		// NOTE: Store the hover state and draggable instance on the timeline for external access
+		animationTimeline.setHoverState = (hovered: boolean) => {
 			isHovered = hovered;
 		};
-		(animationTimeline as GSAPTimeline).draggable = draggable;
+		animationTimeline.draggable = draggable;
 	}
 
 	return animationTimeline;
-}
+};
 
 export class Chapito {
-	#timeline: gsap.core.Timeline | null = null;
+	#timeline: ChapitoTimeline | null = null;
 	#items: HTMLElement[] = [];
 	#isHovered = false;
 	#options: Required<ChapitoOptions>;
@@ -286,7 +314,7 @@ export class Chapito {
 			throw new Error("Chapito: Container element not found");
 		}
 
-		// Get all direct children as carousel items
+		// NOTE: Get all direct children as carousel items
 		const children = containerElement.children;
 		this.#items = [];
 		for (let i = 0; i < children.length; i++) {
@@ -320,9 +348,9 @@ export class Chapito {
 				if (this.#timeline) {
 					gsap.to(this.#timeline, { timeScale: 0, overwrite: true });
 				}
-				// Update draggable hover state if available
-				if ((this.#timeline as any).setHoverState) {
-					(this.#timeline as any).setHoverState(true);
+				// NOTE: Update draggable hover state if available
+				if (this.#timeline?.setHoverState) {
+					this.#timeline.setHoverState(true);
 				}
 			});
 
@@ -332,86 +360,86 @@ export class Chapito {
 					const timeScale = this.#options.direction === "right" ? -1 : 1;
 					gsap.to(this.#timeline, { timeScale, overwrite: true });
 				}
-				// Update draggable hover state if available
-				if ((this.#timeline as any).setHoverState) {
-					(this.#timeline as any).setHoverState(false);
+				// NOTE: Update draggable hover state if available
+				if (this.#timeline?.setHoverState) {
+					this.#timeline.setHoverState(false);
 				}
 			});
 		}
 	}
 
-	// Public API methods
-	public play() {
+	// NOTE: Public API methods
+	play() {
 		if (this.#timeline) {
 			this.#timeline.play();
 		}
 	}
 
-	public pause() {
+	pause() {
 		if (this.#timeline) {
 			this.#timeline.pause();
 		}
 	}
 
-	public reverse() {
+	reverse() {
 		if (this.#timeline) {
 			this.#timeline.reverse();
 		}
 	}
 
-	public next() {
-		if (this.#timeline && (this.#timeline as any).next) {
-			(this.#timeline as any).next();
+	next() {
+		if (this.#timeline?.next) {
+			this.#timeline.next();
 		}
 	}
 
-	public previous() {
-		if (this.#timeline && (this.#timeline as any).previous) {
-			(this.#timeline as any).previous();
+	previous() {
+		if (this.#timeline?.previous) {
+			this.#timeline.previous();
 		}
 	}
 
-	public goTo(index: number) {
-		if (this.#timeline && (this.#timeline as any).toIndex) {
-			(this.#timeline as any).toIndex(index);
+	goTo(index: number) {
+		if (this.#timeline?.toIndex) {
+			this.#timeline.toIndex(index);
 		}
 	}
 
-	public getCurrentIndex(): number {
-		if (this.#timeline && (this.#timeline as any).current) {
-			return (this.#timeline as any).current();
+	getCurrentIndex(): number {
+		if (this.#timeline?.current) {
+			return this.#timeline.current();
 		}
 		return 0;
 	}
 
-	public destroy() {
+	destroy() {
 		if (this.#timeline) {
+			// NOTE: Destroy draggable if it exists
+			if (this.#timeline.draggable) {
+				this.#timeline.draggable.kill();
+			}
+			
 			this.#timeline.kill();
 			this.#timeline = null;
 		}
 
-		// Remove event listeners
+		// NOTE: Remove event listeners
 		if (this.#options.pauseOnHover) {
 			for (const item of this.#items) {
 				item.removeEventListener("mouseenter", () => {});
 				item.removeEventListener("mouseleave", () => {});
 			}
 		}
-
-		// Destroy draggable if it exists
-		if (this.#timeline && (this.#timeline as any).draggable) {
-			(this.#timeline as any).draggable.kill();
-		}
 	}
 
-	public updateOptions(newOptions: Partial<ChapitoOptions>) {
+	updateOptions(newOptions: Partial<ChapitoOptions>) {
 		this.#options = { ...this.#options, ...newOptions };
 		this.destroy();
 		this.#init();
 	}
 }
 
-// Export a factory function for simpler usage
+// NOTE: Export a factory function for simpler usage
 export const createChapito = (
 	container: HTMLElement | string,
 	options?: ChapitoOptions,
