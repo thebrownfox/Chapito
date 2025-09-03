@@ -2,8 +2,6 @@ import gsap from "gsap";
 import { Draggable } from "gsap/Draggable";
 import InertiaPlugin from "gsap/InertiaPlugin";
 
-gsap.registerPlugin(Draggable, InertiaPlugin);
-
 export interface ChapitoOptions {
 	speed?: number;
 	gap?: number;
@@ -34,10 +32,11 @@ interface ChapitoTimeline extends gsap.core.Timeline {
 const horizontalLoop = (
 	_items: HTMLElement[],
 	config: HorizontalLoopConfig = {},
+	gsapInstance: GSAP = gsap,
 ) => {
-	const items = gsap.utils.toArray(_items) as HTMLElement[];
+	const items = gsapInstance.utils.toArray(_items) as HTMLElement[];
 
-	const animationTimeline = gsap.timeline({
+	const animationTimeline = gsapInstance.timeline({
 		repeat: config.repeat || -1,
 		reversed: config.reversed,
 		paused: config.paused,
@@ -63,8 +62,8 @@ const horizontalLoop = (
 		config.snap === false
 			? (v: number) => v
 			: typeof config.snap === "number"
-				? gsap.utils.snap(config.snap)
-				: gsap.utils.snap(1);
+				? gsapInstance.utils.snap(config.snap)
+				: gsapInstance.utils.snap(1);
 	let curX: number;
 	let distanceToStart: number;
 	let distanceToLoop: number;
@@ -72,11 +71,14 @@ const horizontalLoop = (
 
 	const populateWidths = () =>
 		items.forEach((el, i) => {
-			widths[i] = parseFloat(gsap.getProperty(el, "width", "px") as string);
+			widths[i] = parseFloat(
+				gsapInstance.getProperty(el, "width", "px") as string,
+			);
 			xPercents[i] = snap(
-				(parseFloat(gsap.getProperty(el, "x", "px") as string) / widths[i]) *
+				(parseFloat(gsapInstance.getProperty(el, "x", "px") as string) /
+					widths[i]) *
 					100 +
-					(gsap.getProperty(el, "xPercent") as number),
+					(gsapInstance.getProperty(el, "xPercent") as number),
 			);
 		});
 
@@ -85,14 +87,14 @@ const horizontalLoop = (
 		(xPercents[length - 1] / 100) * widths[length - 1] -
 		startX +
 		items[length - 1].offsetWidth *
-			(gsap.getProperty(items[length - 1], "scaleX") as number) +
+			(gsapInstance.getProperty(items[length - 1], "scaleX") as number) +
 		(parseFloat(config.paddingRight as string) || 0);
 
 	populateWidths();
 
 	let totalWidth: number = getTotalWidth();
 
-	gsap.set(items, {
+	gsapInstance.set(items, {
 		x: 0,
 		xPercent: (i: number) => xPercents[i],
 	});
@@ -103,7 +105,7 @@ const horizontalLoop = (
 		distanceToStart = item.offsetLeft + curX - startX;
 		distanceToLoop =
 			distanceToStart +
-			widths[i] * (gsap.getProperty(item, "scaleX") as number);
+			widths[i] * (gsapInstance.getProperty(item, "scaleX") as number);
 
 		animationTimeline
 			.to(
@@ -143,7 +145,7 @@ const horizontalLoop = (
 		if (Math.abs(index - curIndex) > length / 2) {
 			index += index > curIndex ? -length : length;
 		}
-		let newIndex = gsap.utils.wrap(0, length, index),
+		let newIndex = gsapInstance.utils.wrap(0, length, index),
 			time = times[newIndex];
 
 		const goingForward = index > curIndex;
@@ -151,7 +153,7 @@ const horizontalLoop = (
 
 		if (timeIsAhead !== goingForward) {
 			vars.modifiers = {
-				time: gsap.utils.wrap(0, animationTimeline.duration()),
+				time: gsapInstance.utils.wrap(0, animationTimeline.duration()),
 			};
 			time += animationTimeline.duration() * (index > curIndex ? 1 : -1);
 		}
@@ -284,160 +286,180 @@ const horizontalLoop = (
 };
 
 export class Chapito {
-	#timeline: ChapitoTimeline | null = null;
-	#items: HTMLElement[] = [];
-	#isHovered = false;
-	#options: Required<ChapitoOptions>;
-	#container: HTMLElement | string;
+		#timeline: ChapitoTimeline | null = null;
+		#items: HTMLElement[] = [];
+		#isHovered = false;
+		#options: Required<ChapitoOptions>;
+		#container: HTMLElement | string;
+		#gsap: GSAP;
+		#context: gsap.Context | null = null;
 
-	constructor(container: HTMLElement | string, options: ChapitoOptions = {}) {
-		this.#container = container;
-		this.#options = {
-			speed: 50,
-			gap: 0,
-			direction: "left",
-			draggable: false,
-			pauseOnHover: true,
-			...options,
-		};
-
-		this.#init();
-	}
-
-	#init() {
-		const containerElement =
-			typeof this.#container === "string"
-				? (document.querySelector(this.#container) as HTMLElement)
-				: this.#container;
-
-		if (!containerElement) {
-			throw new Error("Chapito: Container element not found");
+		constructor(
+			container: HTMLElement | string,
+			options: ChapitoOptions = {},
+			gsapInstance?: GSAP,
+		) {
+			this.#container = container;
+			this.#options = {
+				speed: 50,
+				gap: 0,
+				direction: "left",
+				draggable: false,
+				pauseOnHover: true,
+				...options,
+			};
+			this.#gsap = gsapInstance || gsap;
+			this.#init();
 		}
 
-		// NOTE: Get all direct children as carousel items
-		const children = containerElement.children;
-		this.#items = [];
-		for (let i = 0; i < children.length; i++) {
-			this.#items.push(children[i] as HTMLElement);
-		}
+		#init() {
+			const containerElement =
+				typeof this.#container === "string"
+					? (document.querySelector(this.#container) as HTMLElement)
+					: this.#container;
 
-		if (this.#items.length === 0) {
-			console.warn("Chapito: No items found in container");
-			return;
-		}
-
-		this.#timeline = horizontalLoop(this.#items, {
-			repeat: -1,
-			speed: this.#options.speed,
-			paddingRight: this.#options.gap,
-			reversed: this.#options.direction === "right",
-			draggable: this.#options.draggable,
-		});
-
-		if (this.#options.pauseOnHover) {
-			this.#setupHoverEvents();
-		}
-	}
-
-	#setupHoverEvents() {
-		if (!this.#timeline) return;
-
-		for (const item of this.#items) {
-			item.addEventListener("mouseenter", () => {
-				this.#isHovered = true;
-				if (this.#timeline) {
-					gsap.to(this.#timeline, { timeScale: 0, overwrite: true });
-				}
-				// NOTE: Update draggable hover state if available
-				if (this.#timeline?.setHoverState) {
-					this.#timeline.setHoverState(true);
-				}
-			});
-
-			item.addEventListener("mouseleave", () => {
-				this.#isHovered = false;
-				if (this.#timeline) {
-					const timeScale = this.#options.direction === "right" ? -1 : 1;
-					gsap.to(this.#timeline, { timeScale, overwrite: true });
-				}
-				// NOTE: Update draggable hover state if available
-				if (this.#timeline?.setHoverState) {
-					this.#timeline.setHoverState(false);
-				}
-			});
-		}
-	}
-
-	// NOTE: Public API methods
-	play() {
-		if (this.#timeline) {
-			this.#timeline.play();
-		}
-	}
-
-	pause() {
-		if (this.#timeline) {
-			this.#timeline.pause();
-		}
-	}
-
-	reverse() {
-		if (this.#timeline) {
-			this.#timeline.reverse();
-		}
-	}
-
-	next() {
-		if (this.#timeline?.next) {
-			this.#timeline.next();
-		}
-	}
-
-	previous() {
-		if (this.#timeline?.previous) {
-			this.#timeline.previous();
-		}
-	}
-
-	goTo(index: number) {
-		if (this.#timeline?.toIndex) {
-			this.#timeline.toIndex(index);
-		}
-	}
-
-	getCurrentIndex(): number {
-		if (this.#timeline?.current) {
-			return this.#timeline.current();
-		}
-		return 0;
-	}
-
-	destroy() {
-		if (this.#timeline) {
-			// NOTE: Destroy draggable if it exists
-			if (this.#timeline.draggable) {
-				this.#timeline.draggable.kill();
+			if (!containerElement) {
+				throw new Error("Chapito: Container element not found");
 			}
-			
-			this.#timeline.kill();
-			this.#timeline = null;
+
+			// NOTE: Get all direct children as carousel items
+			const children = containerElement.children;
+			this.#items = [];
+			for (let i = 0; i < children.length; i++) {
+				this.#items.push(children[i] as HTMLElement);
+			}
+
+			if (this.#items.length === 0) {
+				console.warn("Chapito: No items found in container");
+				return;
+			}
+			// NOTE: We put it in context so we can do a proper cleanup
+			this.#context = this.#gsap.context(() => {
+				if (this.#options.draggable) {
+					this.#gsap.registerPlugin(Draggable, InertiaPlugin);
+				}
+
+				this.#timeline = horizontalLoop(this.#items, {
+					repeat: -1,
+					speed: this.#options.speed,
+					paddingRight: this.#options.gap,
+					reversed: this.#options.direction === "right",
+					draggable: this.#options.draggable,
+				});
+
+				if (this.#options.pauseOnHover) {
+					this.#setupHoverEvents();
+				}
+			}, this.#container); // Scope to the container element
 		}
 
-		// NOTE: Remove event listeners
-		if (this.#options.pauseOnHover) {
+		#setupHoverEvents() {
+			if (!this.#timeline) return;
+
 			for (const item of this.#items) {
-				item.removeEventListener("mouseenter", () => {});
-				item.removeEventListener("mouseleave", () => {});
+				item.addEventListener("mouseenter", () => {
+					this.#isHovered = true;
+					if (this.#timeline) {
+						this.#gsap.to(this.#timeline, { timeScale: 0, overwrite: true });
+					}
+					// NOTE: Update draggable hover state if available
+					if (this.#timeline?.setHoverState) {
+						this.#timeline.setHoverState(true);
+					}
+				});
+
+				item.addEventListener("mouseleave", () => {
+					this.#isHovered = false;
+					if (this.#timeline) {
+						const timeScale = this.#options.direction === "right" ? -1 : 1;
+						this.#gsap.to(this.#timeline, { timeScale, overwrite: true });
+					}
+					// NOTE: Update draggable hover state if available
+					if (this.#timeline?.setHoverState) {
+						this.#timeline.setHoverState(false);
+					}
+				});
 			}
 		}
-	}
 
-	updateOptions(newOptions: Partial<ChapitoOptions>) {
-		this.#options = { ...this.#options, ...newOptions };
-		this.destroy();
-		this.#init();
+		// NOTE: Public API methods
+		play() {
+			if (this.#timeline) {
+				this.#timeline.play();
+			}
+		}
+
+		pause() {
+			if (this.#timeline) {
+				this.#timeline.pause();
+			}
+		}
+
+		reverse() {
+			if (this.#timeline) {
+				this.#timeline.reverse();
+			}
+		}
+
+		next() {
+			if (this.#timeline?.next) {
+				this.#timeline.next();
+			}
+		}
+
+		previous() {
+			if (this.#timeline?.previous) {
+				this.#timeline.previous();
+			}
+		}
+
+		goTo(index: number) {
+			if (this.#timeline?.toIndex) {
+				this.#timeline.toIndex(index);
+			}
+		}
+
+		getCurrentIndex(): number {
+			if (this.#timeline?.current) {
+				return this.#timeline.current();
+			}
+			return 0;
+		}
+
+		destroy(shouldRevert: boolean = true) {
+			if (this.#timeline) {
+				// NOTE: Destroy draggable if it exists
+				if (this.#timeline.draggable) {
+					this.#timeline.draggable.kill();
+				}
+
+				this.#timeline.kill();
+				this.#timeline = null;
+			}
+
+			if (this.#options.pauseOnHover) {
+				// NOTE: Remove event listeners
+				for (const item of this.#items) {
+					item.removeEventListener("mouseenter", () => {});
+					item.removeEventListener("mouseleave", () => {});
+				}
+			}
+
+			// NOTE: Revert only if specified (default true for full cleanup)
+			if (shouldRevert && this.#context) {
+				this.#context.revert();
+				this.#context = null;
+			}
+
+			this.#items = [];
+		}
+
+		updateOptions(newOptions: Partial<ChapitoOptions>) {
+			this.#options = { ...this.#options, ...newOptions };
+			this.destroy();
+			this.#init();
+		}
 	}
-}
 
 // NOTE: Export a factory function for simpler usage
 export const createChapito = (

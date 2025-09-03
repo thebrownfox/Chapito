@@ -35,11 +35,11 @@
 }
 
 .chapitoMarqueeContentAnimationLeft {
-    animation: chapitoMarquee-left var(--animation-duration, 15s) linear infinite;
+    animation: chapitoMarqueeLeft var(--animation-duration, 15s) linear infinite;
 }
 
 .chapitoMarqueeContentAnimationRight {
-    animation: chapitoMarquee-right var(--animation-duration, 15s) linear infinite;
+    animation: chapitoMarqueeRight var(--animation-duration, 15s) linear infinite;
 }
 
 .chapitoMarqueeContent:hover {
@@ -51,7 +51,7 @@
     flex-shrink: 0;
 }
 
-@keyframes chapitoMarquee-left {
+@keyframes chapitoMarqueeLeft {
     0% {
         transform: translate3d(0%, 0, 0);
     }
@@ -61,7 +61,7 @@
     }
 }
 
-@keyframes chapitoMarquee-right {
+@keyframes chapitoMarqueeRight {
     0% {
         transform: translate3d(calc(-100% / var(--duplicate-count, 1)), 0, 0);
     }
